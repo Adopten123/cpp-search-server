@@ -92,7 +92,7 @@ private:
         }
     }
 
-    double ÑomputeIDF(int count_of_item) {
+    double ComputeIDF(int count_of_item) {
         return static_cast<double>(log(static_cast<double>(document_count_) / static_cast<double>(count_of_item)));
     }
 
