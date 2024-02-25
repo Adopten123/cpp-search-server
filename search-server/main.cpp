@@ -83,6 +83,19 @@ private:
         return words;
     }
 
+    string ParseQueryWord(const string& word) {
+        if (word[0] == '-') {
+            return word.substr(1);
+        }
+        else {
+           return word;
+        }
+    }
+
+    double ÑomputeIDF(int count_of_item) {
+        return static_cast<double>(log(static_cast<double>(document_count_) / static_cast<double>(count_of_item)));
+    }
+
     vector<Document> FindAllDocuments(const Query& query_words) const {
         vector<Document> matched_documents;
         map<int, double> document_to_relevance; // id and relevance
@@ -92,7 +105,7 @@ private:
         for (const string& word : query_words.plus_words) {
             if (word_to_document_freqs_.count(word)) {
                 int count_of_item = word_to_document_freqs_.at(word).size();
-                idf.push_back(static_cast<double>(log(static_cast<double>(document_count_) / static_cast<double>(count_of_item))));
+                idf.push_back(ComputeIDF(count_of_item);
             }
             else {
                 idf.push_back(0);
@@ -143,12 +156,7 @@ public:
         Query query_words;
         set<string> result_query;
         for (const string& word : SplitIntoWordsNoStop(text)) {
-            if (word[0] == '-') {
-                query_words.minus_words.insert(word.substr(1));
-            }
-            else {
-                query_words.plus_words.insert(word);
-            }
+            query_words.plus_words.insert(ParseQueryWord(word));
         }
 
         return query_words;
