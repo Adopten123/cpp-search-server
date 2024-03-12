@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <set>
 #include <string>
 #include <utility>
@@ -10,6 +11,8 @@
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double EXP = 1e-6;
+
 
 string ReadLine() {
     string s;
@@ -96,24 +99,10 @@ public:
         return matched_documents;
     }
 
-    vector<Document> FindTopDocuments(const string& raw_query,
-        DocumentStatus status = DocumentStatus::ACTUAL) const {
-        const Query query = ParseQuery(raw_query);
-        auto matched_documents = FindAllDocuments(query, status);
+    vector<Document> FindTopDocuments(const string& raw_query) const {
 
-        sort(matched_documents.begin(), matched_documents.end(),
-            [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
-                    return lhs.rating > rhs.rating;
-                }
-                else {
-                    return lhs.relevance > rhs.relevance;
-                }
-            });
-        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
-            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
-        }
-        return matched_documents;
+        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
+
     }
 
 
@@ -155,6 +144,8 @@ private:
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
 
+
+
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
     }
@@ -173,10 +164,8 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
+
         return rating_sum / static_cast<int>(ratings.size());
     }
 
@@ -231,8 +220,15 @@ private:
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
             for (const auto& [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                if (key_mapper(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                if constexpr (is_invocable_v<KeyMapper, int, DocumentStatus, double>) {
+                    if (key_mapper(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
+                        document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                    }
+                }
+                else {
+                    if (static_cast<DocumentStatus>(key_mapper) == documents_.at(document_id).status) {
+                        document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                    }
                 }
             }
         }
@@ -253,6 +249,7 @@ private:
         }
         return matched_documents;
     }
+
 };
 
 
@@ -271,6 +268,7 @@ int main() {
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, { 5, -12, 2, 1 });
     search_server.AddDocument(3, "ухоженный скворец евгений"s, DocumentStatus::BANNED, { 9 });
     cout << "ACTUAL by default:"s << endl;
+
     for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
         PrintDocument(document);
     }
