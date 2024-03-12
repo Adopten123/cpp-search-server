@@ -11,7 +11,7 @@
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
-const double EXP = 1e-6;
+const double PRECISION = 1e-6;
 
 
 string ReadLine() {
@@ -86,7 +86,7 @@ public:
 
         sort(matched_documents.begin(), matched_documents.end(),
             [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < PRECISION) {
                     return lhs.rating > rhs.rating;
                 }
                 else {
@@ -218,17 +218,24 @@ private:
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
+
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
+            bool flag = false;
+
             for (const auto& [document_id, term_freq] : word_to_document_freqs_.at(word)) {
                 if constexpr (is_invocable_v<KeyMapper, int, DocumentStatus, double>) {
                     if (key_mapper(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
-                        document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                        flag = true;
                     }
                 }
                 else {
                     if (static_cast<DocumentStatus>(key_mapper) == documents_.at(document_id).status) {
-                        document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                        flag = true;
                     }
+                }
+                if (flag == true) {
+                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                    flag = false;
                 }
             }
         }
