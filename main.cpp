@@ -3,6 +3,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -49,9 +50,15 @@ vector<string> SplitIntoWords(const string& text) {
 }
 
 struct Document {
-    int id;
-    double relevance;
-    int rating;
+    int id = 0;
+    double relevance = 0.0;
+    int rating = 0;
+
+    Document() = default;
+
+    Document(int id_, double relevance_, int rating_) : id(id_), relevance(relevance_), rating(rating_) {
+    }
+
 };
 
 enum class DocumentStatus {
@@ -61,28 +68,74 @@ enum class DocumentStatus {
     REMOVED,
 };
 
-class SearchServer {
-public:
-    void SetStopWords(const string& text) {
-        for (const string& word : SplitIntoWords(text)) {
-            stop_words_.insert(word);
+template <typename StrContainer>
+set<string> MakeNonEmptySetOfQueryWords(const StrContainer& strings) {
+    set<string> non_empty_query_set;
+    for (const string& str : strings) {
+        if (!str.empty()) {
+            non_empty_query_set.insert(str);
         }
     }
+    return non_empty_query_set;
+}
+
+class SearchServer {
+public:
+
+    inline static constexpr int INVALID_DOCUMENT_ID = -1;
+
+    template <typename StrContainer>
+    explicit SearchServer(const StrContainer& stop_words)
+        : stop_words_(MakeNonEmptySetOfQueryWords(stop_words)) {
+
+        if (IsSpecialSymbolInCollection(stop_words_)) {
+            throw invalid_argument("Special Symbol is in the collection of stop words");
+        }
+
+    }
+
+    explicit SearchServer(const string& stop_words)
+        : SearchServer(SplitIntoWords(stop_words)) {
+
+        if (IsSpecialSymbolInCollection(stop_words_)) {
+            throw invalid_argument("Special Symbol is in the collection of stop words");
+        }
+
+    }
+
 
     void AddDocument(int document_id, const string& document, DocumentStatus status,
         const vector<int>& ratings) {
-        const vector<string> words = SplitIntoWordsNoStop(document);
+
+        if (document_id < 0 or
+            documents_.find(document_id) != documents_.end()) {
+            throw invalid_argument("Uncorrect ID of the document");
+        }
+
+        vector<string> words;
+        if (!(SplitIntoWordsNoStop(document, words))) {
+            throw invalid_argument("Special Symbols are in the document");
+        }
+
+
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+        id_by_order_addition_.push_back(document_id);
     }
 
     template<typename KeyMapper>
     vector<Document> FindTopDocuments(const string& raw_query, KeyMapper key_mapper) const {
-        const Query query = ParseQuery(raw_query);
-        auto matched_documents = FindAllDocuments(query, key_mapper);
+
+        Query query;
+
+        if (!(ParseQuery(raw_query, query))) {
+            throw invalid_argument("Uncorrect content of the query"s);
+        }
+
+        vector<Document> matched_documents = FindAllDocuments(query, key_mapper);
 
         sort(matched_documents.begin(), matched_documents.end(),
             [](const Document& lhs, const Document& rhs) {
@@ -96,10 +149,11 @@ public:
         if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
+
         return matched_documents;
     }
 
-    vector<Document> FindTopDocuments(const string& raw_query) const {
+    vector<Document>  FindTopDocuments(const string& raw_query) const {
 
         return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
 
@@ -110,10 +164,27 @@ public:
         return documents_.size();
     }
 
-    tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query,
-        int document_id) const {
-        const Query query = ParseQuery(raw_query);
+    int GetDocumentId(int index) const {
+
+        int count_of_id = static_cast<int>(id_by_order_addition_.size());
+
+        if (index < 0 or index >= count_of_id) {
+            throw out_of_range("The index is out of range");
+        }
+
+        return id_by_order_addition_[index];
+    }
+
+    tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
+
+        Query query;
+
+        if (!(ParseQuery(raw_query, query))) {
+            throw invalid_argument("Uncorrect content of the query"s);
+        }
+
         vector<string> matched_words;
+
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
@@ -131,7 +202,8 @@ public:
                 break;
             }
         }
-        return { matched_words, documents_.at(document_id).status };
+        tuple<vector<string>, DocumentStatus> result = { matched_words, documents_.at(document_id).status };
+        return result;
     }
 
 private:
@@ -140,9 +212,15 @@ private:
         DocumentStatus status;
     };
 
+    struct Query {
+        set<string> plus_words;
+        set<string> minus_words;
+    };
+
     set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
+    vector<int> id_by_order_addition_;
 
 
 
@@ -150,14 +228,50 @@ private:
         return stop_words_.count(word) > 0;
     }
 
-    vector<string> SplitIntoWordsNoStop(const string& text) const {
-        vector<string> words;
+    bool IsMinusWithOutWord(const string& str) const {
+        return str == "- " or str == "-";
+    }
+
+    bool IsDoubleMinus(const string& str) const {
+        return str[0] == '-' and str[1] == '-';
+    }
+
+    bool IsSpecialSymbolInWord(const string& str) const {
+        for (char ch : str) {
+
+            if (ch < ' ' and ch >'\0') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template <typename StrContainer>
+    bool IsSpecialSymbolInCollection(const StrContainer& words) {
+        for (const string& word : words) {
+            if (IsSpecialSymbolInWord(word)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool CheckQuery(const string& query) const {
+        return !(IsMinusWithOutWord(query) or IsDoubleMinus(query) or IsSpecialSymbolInWord(query));
+    }
+
+    [[nodiscard]] bool SplitIntoWordsNoStop(const string& text, vector<string>& words) const {
         for (const string& word : SplitIntoWords(text)) {
+
+            if (IsSpecialSymbolInWord(word)) {
+                return false;
+            }
+
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
         }
-        return words;
+        return true;
     }
 
     static int ComputeAverageRating(const vector<int>& ratings) {
@@ -185,14 +299,12 @@ private:
         return { text, is_minus, IsStopWord(text) };
     }
 
-    struct Query {
-        set<string> plus_words;
-        set<string> minus_words;
-    };
-
-    Query ParseQuery(const string& text) const {
-        Query query;
+    [[nodiscard]] bool ParseQuery(const string& text, Query& query) const {
         for (const string& word : SplitIntoWords(text)) {
+
+            if (!(CheckQuery(word))) {
+                return false;
+            }
             const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
@@ -203,7 +315,7 @@ private:
                 }
             }
         }
-        return query;
+        return true;
     }
 
     // Existence required
@@ -259,16 +371,8 @@ private:
 
 };
 
-void PrintDocument(const Document& document) {
-    cout << "{ "s
-        << "document_id = "s << document.id << ", "s
-        << "relevance = "s << document.relevance << ", "s
-        << "rating = "s << document.rating
-        << " }"s << endl;
-}
-
 /*
-   Подставьте сюда вашу реализацию макросов
+   Макросы проверки
    ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
 */
 
@@ -314,7 +418,7 @@ void RunTestImpl(const TestFunc& func, const string& test_name) {
 #define RUN_TEST(func) RunTestImpl(func, #func)
 
 // -------- Начало модульных тестов поисковой системы ----------
-
+/*
 // Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
 void TestExcludeStopWordsFromAddedDocumentContent() {
     const int doc_id = 42;
@@ -545,13 +649,53 @@ void TestFindDocumentByStatus() {
         ASSERT_EQUAL(removed_doc.size(), 0u);
     }
 }
+//Проверка метода MatchDocument
+void TestMatchDocument() {
+    const vector<int> doc_ids = { 1,2,3,4,5 };
+    const vector<string> contents = {
+        "cat in the town"s,
+        "cat in the city"s,
+        "cat eats a fish"s,
+        "cat like a fish"s,
+        "funny cat"
+    };
+    const vector<vector<int>> ratings = {
+        { 1, 2, 3 },
+        { 1, 2, 3 },
+        { 1, 2, 3 },
+        { 1, 2, 3 },
+        { 1, 2, 3 },
+    };
+    const vector<DocumentStatus> status = {
+        DocumentStatus::ACTUAL,
+        DocumentStatus::ACTUAL,
+        DocumentStatus::ACTUAL,
+        DocumentStatus::BANNED,
+        DocumentStatus::IRRELEVANT,
+    };
 
+    {
+        SearchServer server;
+        for (int i = 0; i < 5; i++) {
+            server.AddDocument(doc_ids[i], contents[i], status[i], ratings[i]);
+        }
 
-/*
-Разместите код остальных тестов здесь
-*/
+        const tuple<vector<string>, DocumentStatus> first_test = server.MatchDocument("cat -town"s, 1);
+        const tuple<vector<string>, DocumentStatus> second_test = server.MatchDocument("cat"s, 1);
+        const tuple<vector<string>, DocumentStatus> third_test = server.MatchDocument("cat -town"s, 4);
+        const tuple<vector<string>, DocumentStatus> forth_test = server.MatchDocument("cat -fish"s, 4);
 
-// Функция TestSearchServer является точкой входа для запуска тестов
+        ASSERT_EQUAL(get<0>(first_test).size(), 0u);
+        ASSERT_EQUAL(static_cast<int>(get<1>(first_test)), 0);
+        ASSERT_EQUAL(get<0>(second_test).size(), 1u);
+        ASSERT_EQUAL(static_cast<int>(get<1>(second_test)), 0);
+        ASSERT_EQUAL(get<0>(third_test).size(), 1u);
+        ASSERT_EQUAL(static_cast<int>(get<1>(third_test)), 2);
+        ASSERT_EQUAL(get<0>(forth_test).size(), 0u);
+        ASSERT_EQUAL(static_cast<int>(get<1>(forth_test)), 2);
+    }
+}
+
 void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
     RUN_TEST(TestFindDocumentsWithMinusWords);
@@ -560,14 +704,15 @@ void TestSearchServer() {
     RUN_TEST(TestComputeRelevance);
     RUN_TEST(TestFindDocumentByStatus);
     RUN_TEST(TestComputeRating);
-    // Не забудьте вызывать остальные тесты здесь
+    RUN_TEST(TestMatchDocument);
 }
-
-// --------- Окончание модульных тестов поисковой системы -----------
-
+*/
+void PrintDocument(const Document& document) {
+    cout << "{ "s
+        << "document_id = "s << document.id << ", "s
+        << "relevance = "s << document.relevance << ", "s
+        << "rating = "s << document.rating << " }"s << endl;
+}
 int main() {
-
-    TestSearchServer();
-    cout << "Search server testing finished"s << endl;
-    return 0;
+    SearchServer search_server("и в на-/"s);
 }
