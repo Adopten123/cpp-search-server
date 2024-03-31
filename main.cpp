@@ -82,8 +82,6 @@ set<string> MakeNonEmptySetOfQueryWords(const StrContainer& strings) {
 class SearchServer {
 public:
 
-    inline static constexpr int INVALID_DOCUMENT_ID = -1;
-
     template <typename StrContainer>
     explicit SearchServer(const StrContainer& stop_words)
         : stop_words_(MakeNonEmptySetOfQueryWords(stop_words)) {
