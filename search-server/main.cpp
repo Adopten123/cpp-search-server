@@ -105,9 +105,11 @@ public:
             throw invalid_argument("Uncorrect ID of the document");
         }
 
-
-        try {
-            vector<string> words = (SplitIntoWordsNoStop(document));
+        vector<string> words;
+        if (!SplitIntoWordsNoStop(document, words)) {
+            throw invalid_argument("Special Symbols are in the document");
+        }
+        else {
             const double inv_word_count = 1.0 / words.size();
             for (const string& word : words) {
                 word_to_document_freqs_[word][document_id] += inv_word_count;
@@ -115,15 +117,10 @@ public:
             documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
             id_by_order_addition_.push_back(document_id);
         }
-        catch (invalid_argument& e) {
-            throw invalid_argument("Special Symbols are in the document");
-
-        }
     }
 
     template<typename KeyMapper>
     vector<Document> FindTopDocuments(const string& raw_query, KeyMapper key_mapper) const {
-
 
         try {
             Query query = ParseQuery(raw_query);
@@ -148,6 +145,13 @@ public:
             throw invalid_argument("Uncorrect content of the query"s);
         }
 
+    }
+
+    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status) const {
+        return FindTopDocuments(
+            raw_query, [status](int document_id, DocumentStatus document_status, int rating) {
+                return document_status == status;
+            });
     }
 
     vector<Document>  FindTopDocuments(const string& raw_query) const {
@@ -251,21 +255,19 @@ private:
         return !(IsMinusWithOutWord(query) or IsDoubleMinus(query) or IsSpecialSymbolInWord(query));
     }
 
-    vector<string> SplitIntoWordsNoStop(const string& text) const {
-
-        vector<string> words;
+    [[nodiscard]] bool SplitIntoWordsNoStop(const string& text, vector<string>& words) const {
 
         for (const string& word : SplitIntoWords(text)) {
 
             if (IsSpecialSymbolInWord(word)) {
-                throw invalid_argument("Uncorrect content of the query"s);
+                return false;
             }
 
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
         }
-        return words;
+        return true;
     }
 
     static int ComputeAverageRating(const vector<int>& ratings) {
@@ -287,6 +289,10 @@ private:
 
         string temp_text = text;
 
+        if (!(CheckQuery(temp_text))) {
+            throw invalid_argument("Uncorrect query"s);
+        }
+
         bool is_minus = false;
         // Word shouldn't be empty
         if (temp_text[0] == '-') {
@@ -302,9 +308,6 @@ private:
 
         for (const string& word : SplitIntoWords(text)) {
 
-            if (!(CheckQuery(word))) {
-                throw invalid_argument("Uncorrect query"s);
-            }
             const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
@@ -323,31 +326,19 @@ private:
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
 
-    template<typename KeyMapper>
-    vector<Document> FindAllDocuments(const Query& query, KeyMapper key_mapper) const {
+    template <typename DocumentPredicate>
+    vector<Document> FindAllDocuments(const Query& query,
+        DocumentPredicate document_predicate) const {
         map<int, double> document_to_relevance;
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
-
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            bool flag = false;
-
             for (const auto& [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                if constexpr (is_invocable_v<KeyMapper, int, DocumentStatus, double>) {
-                    if (key_mapper(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
-                        flag = true;
-                    }
-                }
-                else {
-                    if (static_cast<DocumentStatus>(key_mapper) == documents_.at(document_id).status) {
-                        flag = true;
-                    }
-                }
-                if (flag == true) {
+                const auto& document_data = documents_.at(document_id);
+                if (document_predicate(document_id, document_data.status, document_data.rating)) {
                     document_to_relevance[document_id] += term_freq * inverse_document_freq;
-                    flag = false;
                 }
             }
         }
