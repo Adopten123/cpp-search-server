@@ -105,18 +105,19 @@ public:
             throw invalid_argument("Uncorrect ID of the document");
         }
 
-        vector<string> words;
-        if (!SplitIntoWordsNoStop(document, words)) {
-            throw invalid_argument("Special Symbols are in the document");
+        vector<string> words = SplitIntoWordsNoStop(document);
+
+        const double inv_word_count = 1.0 / words.size();
+
+        for (const string& word : words) {
+
+            word_to_document_freqs_[word][document_id] += inv_word_count;
+
         }
-        else {
-            const double inv_word_count = 1.0 / words.size();
-            for (const string& word : words) {
-                word_to_document_freqs_[word][document_id] += inv_word_count;
-            }
-            documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
-            id_by_order_addition_.push_back(document_id);
-        }
+
+        documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+
+        id_by_order_addition_.push_back(document_id);
     }
 
     template<typename KeyMapper>
@@ -255,19 +256,21 @@ private:
         return !(IsMinusWithOutWord(query) or IsDoubleMinus(query) or IsSpecialSymbolInWord(query));
     }
 
-    [[nodiscard]] bool SplitIntoWordsNoStop(const string& text, vector<string>& words) const {
+    vector<string> SplitIntoWordsNoStop(const string& text) const {
+
+        vector<string> words;
 
         for (const string& word : SplitIntoWords(text)) {
 
             if (IsSpecialSymbolInWord(word)) {
-                return false;
+                throw invalid_argument("Special Symbols are in the document");
             }
 
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
         }
-        return true;
+        return words;
     }
 
     static int ComputeAverageRating(const vector<int>& ratings) {
