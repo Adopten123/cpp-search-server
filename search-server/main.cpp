@@ -120,7 +120,6 @@ public:
     template<typename KeyMapper>
     vector<Document> FindTopDocuments(const string& raw_query, KeyMapper key_mapper) const {
 
-        try {
             Query query = ParseQuery(raw_query);
             vector<Document> matched_documents = FindAllDocuments(query, key_mapper);
 
@@ -138,10 +137,6 @@ public:
             }
 
             return matched_documents;
-        }
-        catch (invalid_argument& e) {
-            throw invalid_argument("Uncorrect content of the query"s);
-        }
 
     }
 
