@@ -277,6 +277,10 @@ private:
 
     QueryWord ParseQueryWord(const string& text) const {
 
+        if (!(CheckQuery(text))) {
+            throw invalid_argument("Uncorrect query"s);
+        }
+
         string temp_text = text;
 
         bool is_minus = false;
@@ -294,9 +298,6 @@ private:
 
         for (const string& word : SplitIntoWords(text)) {
 
-            if (!(CheckQuery(word))) {
-                throw invalid_argument("Uncorrect query"s);
-            }
             const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
