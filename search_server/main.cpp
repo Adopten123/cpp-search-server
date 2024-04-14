@@ -11,19 +11,6 @@
 
 using namespace std;
 
-
-void PrintDocument(const Document& document) {
-    cout << "{ "s
-        << "document_id = "s << document.id << ", "s
-        << "relevance = "s << document.relevance << ", "s
-        << "rating = "s << document.rating << " }"s << endl;
-}
-
-template <typename Container>
-auto Paginate(const Container& c, size_t page_size) {
-    return Paginator(begin(c), end(c), page_size);
-}
-
 int main() {
     SearchServer search_server("and in at"s);
     RequestQueue request_queue(search_server);
