@@ -3,12 +3,6 @@
 #include "document.h"
 #include "search_server.h"
 
-#include <algorithm>
-#include <stack>
-#include <string>
-#include <vector>
-
-
 using namespace std;
 
 RequestQueue::RequestQueue(const SearchServer& search_server) : search_server_(search_server) {

@@ -5,11 +5,7 @@
 
 #include<algorithm>
 #include<cmath>
-#include<map>
 #include<numeric>
-#include<set>
-#include<string>
-#include<vector>
 
 using namespace std;
 

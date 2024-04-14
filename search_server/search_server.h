@@ -4,9 +4,6 @@
 #include "string_processing.h"
 
 #include<map>
-#include<set>
-#include<string>
-#include<vector>
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double PRECISION = 1e-6;

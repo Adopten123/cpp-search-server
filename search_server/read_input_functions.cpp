@@ -1,10 +1,6 @@
 #include "read_input_functions.h"
 
-#include "document.h"
-#include "paginator.h"
-
 #include <iostream>
-#include <ostream>
 #include <string>
 
 using namespace std;

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "document.h"
-#include "paginator.h"
-
-#include <ostream>
+#include <string>
 
 std::string ReadLine();
 
