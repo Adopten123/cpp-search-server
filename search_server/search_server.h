@@ -157,13 +157,12 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 
 }
 
-using namespace std;
-
 template <typename StrContainer>
 SearchServer::SearchServer(const StrContainer& stop_words)
     : stop_words_(MakeNonEmptySetOfQueryWords(stop_words)) {
 
     if (IsSpecialSymbolInCollection(stop_words_)) {
+        using namespace std;
         throw invalid_argument("Special Symbol is in the collection of stop words"s);
     }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include<ostream>
+
 enum class DocumentStatus {
     ACTUAL,
     IRRELEVANT,
@@ -17,5 +19,7 @@ struct Document {
     Document(int id_, double relevance_, int rating_);
 
 };
+
+std::ostream& operator<< (std::ostream& out, const Document& document);
 
 void PrintDocument(const Document& document);

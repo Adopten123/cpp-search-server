@@ -314,12 +314,11 @@ void TestSearchServer() {
 }
 */
 
-using namespace std;
-
 template <typename T, typename U>
-void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& u_str, const string& file,
-    const string& func, unsigned line, const string& hint) {
+void AssertEqualImpl(const T& t, const U& u, const std::string& t_str, const std::string& u_str, const std::string& file,
+    const std::string& func, unsigned line, const std::string& hint) {
     if (t != u) {
+        using namespace std;
         cerr << boolalpha;
         cerr << file << "("s << line << "): "s << func << ": "s;
         cerr << "ASSERT_EQUAL("s << t_str << ", "s << u_str << ") failed: "s;
@@ -333,7 +332,8 @@ void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& 
 }
 
 template <typename TestFunc>
-void RunTestImpl(const TestFunc& func, const string& test_name) {
+void RunTestImpl(const TestFunc& func, const std::string& test_name) {
     func();
+    using namespace std;
     cerr << test_name << " OK"s << endl;
 }
