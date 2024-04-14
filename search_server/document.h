@@ -17,3 +17,5 @@ struct Document {
     Document(int id_, double relevance_, int rating_);
 
 };
+
+void PrintDocument(const Document& document);

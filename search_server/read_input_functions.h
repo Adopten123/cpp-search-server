@@ -5,6 +5,10 @@
 
 #include <ostream>
 
+std::string ReadLine();
+
+int ReadLineWithNumber();
+
 std::ostream& operator<< (std::ostream& out, const Document& document);
 
 template<typename Iterator>
